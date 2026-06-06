@@ -1,4 +1,4 @@
-# agentwatch 🔍
+# agentsentry 🔍
 
 > Audit AI agent config files for dangerous permissions and risky tool combinations.
 
