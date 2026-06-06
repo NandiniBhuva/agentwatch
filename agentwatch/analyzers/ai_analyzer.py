@@ -1,22 +1,15 @@
 import os
+from groq import Groq
 import yaml
-from google import genai
 
-# Configure the Gemini client using the API key from environment
-client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
+# Initialize Groq client
+client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
 
 
 def analyze_with_ai(config: dict, findings: list) -> dict:
     """
-    Takes the agent config and rule-based findings, sends them to Gemini,
+    Takes the agent config and rule-based findings, sends them to Groq/LLaMA,
     and returns an AI-powered analysis with explanations, fixes, and a summary.
-
-    Returns a dict with:
-    - success: whether the AI call succeeded
-    - summary: executive summary of the overall risk
-    - finding_analysis: detailed explanation of each finding
-    - missed_risks: anything the rules missed
-    - recommendation: one-line action item
     """
 
     if not findings:
@@ -29,8 +22,7 @@ def analyze_with_ai(config: dict, findings: list) -> dict:
 
     config_text = yaml.dump(config, default_flow_style=False)
 
-    prompt = f"""
-You are a senior AI security analyst specializing in AI agent permission auditing.
+    prompt = f"""You are a senior AI security analyst specializing in AI agent permission auditing.
 
 You are reviewing an AI agent configuration file. An automated rule-based scanner
 has already flagged some issues. Your job is to:
@@ -58,17 +50,24 @@ MISSED RISKS:
 [Any additional risks you spotted that the automated scanner didn't catch. If none, write "None identified."]
 
 OVERALL RECOMMENDATION:
-[One sentence on what the team should do first]
-"""
+[One sentence on what the team should do first]"""
 
     try:
-        response = client.models.generate_content(
-            model="gemini-2.0-flash-lite",
-            contents=prompt
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            max_tokens=1500,
+            temperature=0.3
         )
-        response_text = response.text
 
+        response_text = response.choices[0].message.content
         sections = _parse_response(response_text)
+
         return {
             "success": True,
             "summary": sections.get("EXECUTIVE SUMMARY", "").strip(),
@@ -92,7 +91,6 @@ OVERALL RECOMMENDATION:
 def _parse_response(text: str) -> dict:
     """
     Splits the AI response into labeled sections.
-    Each section starts with a label like 'EXECUTIVE SUMMARY:'
     """
     sections = {}
     current_section = None
